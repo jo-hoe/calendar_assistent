@@ -22,6 +22,11 @@ update: ## update dependencies
 lint: ## run linters
 	golangci-lint run -E dupl -E gocyclo -E gosec -E misspell -E sqlclosecheck
 
+.PHONY: install-hooks
+install-hooks: ## install git hooks
+	@echo Installing git hooks...
+	@go run -C .githooks install.go
+
 .PHONY: test
 test: ## run go tests with coverage
 	go test ./... -covermode=count
