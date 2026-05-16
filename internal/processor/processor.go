@@ -10,8 +10,8 @@ import (
 )
 
 type Processor struct {
-	llmClient    llm.Client
-	calProvider  calendar.Provider
+	llmClient   llm.Client
+	calProvider calendar.Provider
 }
 
 func New(llmClient llm.Client, calProvider calendar.Provider) *Processor {

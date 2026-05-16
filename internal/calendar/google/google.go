@@ -126,7 +126,7 @@ func (c *Client) CreateEvent(ctx context.Context, event *llm.EventData) (string,
 	}
 
 	var result struct {
-		ID      string `json:"id"`
+		ID       string `json:"id"`
 		HTMLLink string `json:"htmlLink"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {

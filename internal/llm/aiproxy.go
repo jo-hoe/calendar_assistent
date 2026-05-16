@@ -145,8 +145,8 @@ func truncate(s string, max int) string {
 }
 
 const (
-	roleSystem    = "system"
-	roleUser      = "user"
+	roleSystem       = "system"
+	roleUser         = "user"
 	partTypeText     = "text"
 	partTypeImageURL = "image_url"
 )

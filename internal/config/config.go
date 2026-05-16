@@ -41,7 +41,7 @@ type AIProxyConfig struct {
 }
 
 type CalendarConfig struct {
-	Provider string             `yaml:"provider"`
+	Provider string               `yaml:"provider"`
 	Google   GoogleCalendarConfig `yaml:"google"`
 }
 
