@@ -56,6 +56,7 @@ go run ./cmd/calendar-assistent
 #### Call the API
 
 Create event from text:
+
 ```bash
 curl -X POST "http://localhost:8080/v1/events/text" \
   -H "Content-Type: application/json" \
@@ -63,6 +64,7 @@ curl -X POST "http://localhost:8080/v1/events/text" \
 ```
 
 Create event from file:
+
 ```bash
 curl -X POST "http://localhost:8080/v1/events/artifact" \
   -F "file=@ticket.png" \
@@ -70,6 +72,7 @@ curl -X POST "http://localhost:8080/v1/events/artifact" \
 ```
 
 Health check:
+
 ```bash
 curl http://localhost:8080/healthz
 ```
