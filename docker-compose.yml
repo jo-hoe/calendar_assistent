@@ -1,0 +1,15 @@
+services:
+  calendar-assistent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: calendar-assistent:latest
+    container_name: calendar-assistent
+    network_mode: bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dev/app-config.yaml:/app/config/config.yaml:ro
+      - ./dev/google-credentials.json:/app/secrets/google-credentials.json:ro

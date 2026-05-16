@@ -1,0 +1,16 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: calendar-assistent-cluster
+kubeAPI:
+  hostIP: "127.0.0.1"
+  hostPort: "6550"
+registries:
+  create:
+    name: registry.localhost
+    host: "0.0.0.0"
+    hostPort: "5000"
+ports:
+  - port: "8080:80"
+    nodeFilters:
+      - loadbalancer

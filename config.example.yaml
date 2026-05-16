@@ -1,0 +1,26 @@
+server:
+  address: ":8080"
+  readTimeout: "15s"
+  writeTimeout: "2m"
+  idleTimeout: "60s"
+  maxUpload: "10MiB"
+  # apiKey: "your-api-key-here"  # uncomment to require API key
+  logLevel: "info"
+
+llm:
+  provider: "mock"  # "mock" or "aiproxy"
+  aiproxy:
+    # baseUrl: "http://host.docker.internal:11434"  # AI proxy URL
+    baseUrl: ""
+    apiKey: "${AIPROXY_API_KEY}"
+    model: "gpt-4o"
+    systemPrompt: ""  # empty = use embedded default prompt
+    temperature: 0.2
+    maxTokens: 4096
+
+calendar:
+  provider: "google"
+  google:
+    credentialsFile: "/app/secrets/google-credentials.json"
+    calendarId: "primary"
+    timeZone: "UTC"

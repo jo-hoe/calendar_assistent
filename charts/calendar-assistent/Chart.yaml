@@ -1,0 +1,8 @@
+apiVersion: v2
+name: calendar-assistent
+description: Helm chart for deploying Calendar Assistent
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+sources:
+  - https://github.com/jo-hoe/calendar-assistent

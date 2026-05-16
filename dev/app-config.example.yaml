@@ -1,0 +1,28 @@
+# Dev Configuration
+# Copy this file to dev/app-config.yaml and fill in your values.
+# This file is gitignored.
+
+server:
+  address: ":8080"
+  readTimeout: "15s"
+  writeTimeout: "2m"
+  idleTimeout: "60s"
+  maxUpload: "10MiB"
+  logLevel: "debug"
+
+llm:
+  provider: "mock"
+  aiproxy:
+    baseUrl: "http://host.docker.internal:11434"
+    apiKey: ""
+    model: "gpt-4o"
+    systemPrompt: ""
+    temperature: 0.2
+    maxTokens: 4096
+
+calendar:
+  provider: "google"
+  google:
+    credentialsFile: "/app/secrets/google-credentials.json"
+    calendarId: "primary"
+    timeZone: "Europe/Berlin"
