@@ -17,6 +17,8 @@ func NewProvider(cfg config.CalendarConfig) (Provider, error) {
 	switch cfg.Provider {
 	case "google":
 		return google.New(cfg.Google)
+	case "mock":
+		return newMockProvider()
 	default:
 		return nil, fmt.Errorf("unsupported calendar provider %q", cfg.Provider)
 	}

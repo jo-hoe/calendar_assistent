@@ -224,9 +224,9 @@ func validate(cfg *Config) error {
 	}
 
 	switch cfg.Calendar.Provider {
-	case "google":
+	case "google", "mock":
 	default:
-		return fmt.Errorf("unsupported calendar.provider %q (must be \"google\")", cfg.Calendar.Provider)
+		return fmt.Errorf("unsupported calendar.provider %q (must be \"google\" or \"mock\")", cfg.Calendar.Provider)
 	}
 
 	if cfg.Calendar.Provider == "google" {

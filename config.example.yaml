@@ -19,7 +19,7 @@ llm:
     maxTokens: 4096
 
 calendar:
-  provider: "google"
+  provider: "google"  # "google" or "mock"
   google:
     credentialsFile: "/app/secrets/google-credentials.json"
     calendarId: "primary"
