@@ -23,7 +23,7 @@ type mockLLM struct {
 	err   error
 }
 
-func (m *mockLLM) ExtractEvent(_ context.Context, _ io.Reader, _ string) (*llm.EventData, error) {
+func (m *mockLLM) ExtractEvent(_ context.Context, _ io.Reader, _ llm.MIMEType) (*llm.EventData, error) {
 	return m.event, m.err
 }
 
@@ -191,15 +191,15 @@ func TestAPIKeyAuth_ValidKey(t *testing.T) {
 func TestDetectMIMEType(t *testing.T) {
 	tests := []struct {
 		filename string
-		want     string
+		want     llm.MIMEType
 	}{
-		{"photo.png", "image/png"},
-		{"doc.PDF", "application/pdf"},
-		{"file.jpg", "image/jpeg"},
-		{"file.jpeg", "image/jpeg"},
-		{"page.html", "text/html"},
-		{"notes.txt", "text/plain"},
-		{"unknown.xyz", "application/octet-stream"},
+		{"photo.png", llm.MIMEType("image/png")},
+		{"doc.PDF", llm.MIMEType("application/pdf")},
+		{"file.jpg", llm.MIMEType("image/jpeg")},
+		{"file.jpeg", llm.MIMEType("image/jpeg")},
+		{"page.html", llm.MIMEType("text/html")},
+		{"notes.txt", llm.MIMEType("text/plain")},
+		{"unknown.xyz", llm.MIMEType("application/octet-stream")},
 	}
 	for _, tc := range tests {
 		got := detectMIMEType(tc.filename)

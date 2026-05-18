@@ -12,7 +12,7 @@ func newMockFromConfig() (Client, error) {
 	return &mockClient{}, nil
 }
 
-func (m *mockClient) ExtractEvent(_ context.Context, _ io.Reader, _ string) (*EventData, error) {
+func (m *mockClient) ExtractEvent(_ context.Context, _ io.Reader, _ MIMEType) (*EventData, error) {
 	now := time.Now().Add(24 * time.Hour)
 	return &EventData{
 		Title:       "Mock Event",

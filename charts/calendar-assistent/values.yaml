@@ -70,8 +70,21 @@ config:
   calendar:
     provider: "google"
     google:
-      credentialsFile: "/app/secrets/google-credentials.json"
+      credentialsFile: "/app/secrets/google/google-credentials.json"
       calendarId: "primary"
       timeZone: "UTC"
+    webcal:
+      eventTtl: "720h"
+      storage:
+        provider: "s3"
+        s3:
+          bucket: ""
+          key: "calendar.ics"
+          region: ""
+          credentialsFile: "/app/secrets/s3-credentials.json"
+          endpoint: ""
+          publicUrl: ""
 
 googleCredentials: ""
+
+s3Credentials: ""  # base64-encoded JSON: {"accessKeyId":"...","secretAccessKey":"..."}

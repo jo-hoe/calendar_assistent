@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -34,7 +33,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	calProvider, err := calendar.NewProvider(cfg.Calendar)
+	calProvider, err := calendar.NewProvider(cfg.Calendar, logger)
 	if err != nil {
 		logger.Error("creating calendar provider", "error", err)
 		os.Exit(1)
@@ -68,13 +67,13 @@ func main() {
 	}
 }
 
-func parseLogLevel(s string) slog.Level {
-	switch strings.ToLower(s) {
-	case "debug":
+func parseLogLevel(s config.LogLevel) slog.Level {
+	switch s {
+	case config.LogLevelDebug:
 		return slog.LevelDebug
-	case "warn", "warning":
+	case config.LogLevelWarn, config.LogLevelWarning:
 		return slog.LevelWarn
-	case "error":
+	case config.LogLevelError:
 		return slog.LevelError
 	default:
 		return slog.LevelInfo

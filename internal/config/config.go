@@ -10,6 +10,29 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type CalendarProvider string
+type LLMProvider string
+type StorageProvider string
+type LogLevel string
+
+const (
+	CalendarProviderGoogle CalendarProvider = "google"
+	CalendarProviderWebcal CalendarProvider = "webcal"
+	CalendarProviderMock   CalendarProvider = "mock"
+
+	LLMProviderMock    LLMProvider = "mock"
+	LLMProviderAIProxy LLMProvider = "aiproxy"
+
+	StorageProviderS3   StorageProvider = "s3"
+	StorageProviderMock StorageProvider = "mock"
+
+	LogLevelDebug   LogLevel = "debug"
+	LogLevelInfo    LogLevel = "info"
+	LogLevelWarn    LogLevel = "warn"
+	LogLevelWarning LogLevel = "warning"
+	LogLevelError   LogLevel = "error"
+)
+
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	LLM      LLMConfig      `yaml:"llm"`
@@ -23,11 +46,11 @@ type ServerConfig struct {
 	IdleTimeout  Duration `yaml:"idleTimeout"`
 	APIKey       string   `yaml:"apiKey"`
 	MaxUpload    ByteSize `yaml:"maxUpload"`
-	LogLevel     string   `yaml:"logLevel"`
+	LogLevel     LogLevel `yaml:"logLevel"`
 }
 
 type LLMConfig struct {
-	Provider string        `yaml:"provider"`
+	Provider LLMProvider   `yaml:"provider"`
 	AIProxy  AIProxyConfig `yaml:"aiproxy"`
 }
 
@@ -41,8 +64,28 @@ type AIProxyConfig struct {
 }
 
 type CalendarConfig struct {
-	Provider string               `yaml:"provider"`
+	Provider CalendarProvider     `yaml:"provider"`
 	Google   GoogleCalendarConfig `yaml:"google"`
+	Webcal   WebcalConfig         `yaml:"webcal"`
+}
+
+type WebcalConfig struct {
+	EventTTL Duration      `yaml:"eventTtl"`
+	Storage  StorageConfig `yaml:"storage"`
+}
+
+type StorageConfig struct {
+	Provider StorageProvider `yaml:"provider"`
+	S3       S3Config        `yaml:"s3"`
+}
+
+type S3Config struct {
+	Bucket          string `yaml:"bucket"`
+	Key             string `yaml:"key"`
+	Region          string `yaml:"region"`
+	CredentialsFile string `yaml:"credentialsFile"`
+	Endpoint        string `yaml:"endpoint"`
+	PublicURL       string `yaml:"publicUrl"`
 }
 
 type GoogleCalendarConfig struct {
@@ -128,18 +171,21 @@ func parseByteSize(s string) (int64, error) {
 }
 
 const (
-	defaultAddress      = ":8080"
-	defaultReadTimeout  = 15 * time.Second
-	defaultWriteTimeout = 2 * time.Minute
-	defaultIdleTimeout  = 60 * time.Second
-	defaultMaxUpload    = 10 * 1024 * 1024 // 10 MiB
-	defaultLLMProvider  = "mock"
-	defaultCalProvider  = "google"
-	defaultCalendarID   = "primary"
-	defaultTimeZone     = "UTC"
-	defaultLogLevel     = "info"
-	defaultTemperature  = 0.2
-	defaultMaxTokens    = 4096
+	defaultAddress         = ":8080"
+	defaultReadTimeout     = 15 * time.Second
+	defaultWriteTimeout    = 2 * time.Minute
+	defaultIdleTimeout     = 60 * time.Second
+	defaultMaxUpload       = 10 * 1024 * 1024 // 10 MiB
+	defaultLLMProvider     = LLMProviderMock
+	defaultCalProvider     = CalendarProviderGoogle
+	defaultCalendarID      = "primary"
+	defaultTimeZone        = "UTC"
+	defaultLogLevel        = LogLevelInfo
+	defaultTemperature     = 0.2
+	defaultMaxTokens       = 4096
+	defaultEventTTL        = 720 * time.Hour // 30 days
+	defaultS3Key           = "calendar.ics"
+	defaultStorageProvider = StorageProviderS3
 )
 
 func Load(path string) (*Config, error) {
@@ -208,32 +254,76 @@ func applyDefaults(cfg *Config) {
 	if cfg.Calendar.Google.TimeZone == "" {
 		cfg.Calendar.Google.TimeZone = defaultTimeZone
 	}
+	if cfg.Calendar.Webcal.EventTTL.Duration == 0 {
+		cfg.Calendar.Webcal.EventTTL.Duration = defaultEventTTL
+	}
+	if cfg.Calendar.Webcal.Storage.Provider == "" {
+		cfg.Calendar.Webcal.Storage.Provider = defaultStorageProvider
+	}
+	if cfg.Calendar.Webcal.Storage.S3.Key == "" {
+		cfg.Calendar.Webcal.Storage.S3.Key = defaultS3Key
+	}
 }
 
 func validate(cfg *Config) error {
-	switch cfg.LLM.Provider {
-	case "mock", "aiproxy":
+	if err := validateLLM(&cfg.LLM); err != nil {
+		return err
+	}
+	return validateCalendar(&cfg.Calendar)
+}
+
+func validateLLM(cfg *LLMConfig) error {
+	switch cfg.Provider {
+	case LLMProviderMock, LLMProviderAIProxy:
 	default:
-		return fmt.Errorf("unsupported llm.provider %q (must be \"mock\" or \"aiproxy\")", cfg.LLM.Provider)
+		return fmt.Errorf("unsupported llm.provider %q (must be %q or %q)", cfg.Provider, LLMProviderMock, LLMProviderAIProxy)
 	}
 
-	if cfg.LLM.Provider == "aiproxy" {
-		if cfg.LLM.AIProxy.BaseURL == "" {
-			return fmt.Errorf("llm.aiproxy.baseUrl is required when provider is \"aiproxy\"")
+	if cfg.Provider == LLMProviderAIProxy {
+		if cfg.AIProxy.BaseURL == "" {
+			return fmt.Errorf("llm.aiproxy.baseUrl is required when provider is %q", LLMProviderAIProxy)
 		}
 	}
 
-	switch cfg.Calendar.Provider {
-	case "google", "mock":
+	return nil
+}
+
+func validateCalendar(cfg *CalendarConfig) error {
+	switch cfg.Provider {
+	case CalendarProviderGoogle, CalendarProviderMock:
+	case CalendarProviderWebcal:
+		if err := validateWebcalStorage(&cfg.Webcal.Storage); err != nil {
+			return err
+		}
 	default:
-		return fmt.Errorf("unsupported calendar.provider %q (must be \"google\" or \"mock\")", cfg.Calendar.Provider)
+		return fmt.Errorf("unsupported calendar.provider %q (must be %q, %q, or %q)", cfg.Provider, CalendarProviderGoogle, CalendarProviderWebcal, CalendarProviderMock)
 	}
 
-	if cfg.Calendar.Provider == "google" {
-		if cfg.Calendar.Google.CredentialsFile == "" {
+	if cfg.Provider == CalendarProviderGoogle {
+		if cfg.Google.CredentialsFile == "" {
 			return fmt.Errorf("calendar.google.credentialsFile is required")
 		}
 	}
 
+	return nil
+}
+
+func validateWebcalStorage(cfg *StorageConfig) error {
+	switch cfg.Provider {
+	case StorageProviderS3:
+		s3 := cfg.S3
+		if s3.Bucket == "" {
+			return fmt.Errorf("calendar.webcal.storage.s3.bucket is required")
+		}
+		if s3.Region == "" {
+			return fmt.Errorf("calendar.webcal.storage.s3.region is required")
+		}
+		if s3.CredentialsFile == "" {
+			return fmt.Errorf("calendar.webcal.storage.s3.credentialsFile is required")
+		}
+	case StorageProviderMock:
+	default:
+		return fmt.Errorf("unsupported calendar.webcal.storage.provider %q (must be %q or %q)", cfg.Provider, StorageProviderS3, StorageProviderMock)
+	}
 	return nil
 }

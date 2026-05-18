@@ -54,8 +54,8 @@ calendar:
 	if cfg.Server.APIKey != "test-key" {
 		t.Errorf("APIKey = %q, want %q", cfg.Server.APIKey, "test-key")
 	}
-	if cfg.LLM.Provider != "aiproxy" {
-		t.Errorf("LLM.Provider = %q, want %q", cfg.LLM.Provider, "aiproxy")
+	if cfg.LLM.Provider != LLMProviderAIProxy {
+		t.Errorf("LLM.Provider = %q, want %q", cfg.LLM.Provider, LLMProviderAIProxy)
 	}
 	if cfg.LLM.AIProxy.BaseURL != "http://localhost:11434" {
 		t.Errorf("AIProxy.BaseURL = %q, want %q", cfg.LLM.AIProxy.BaseURL, "http://localhost:11434")

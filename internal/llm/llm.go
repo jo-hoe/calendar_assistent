@@ -9,6 +9,9 @@ import (
 	"github.com/jo-hoe/calendar-assistent/internal/config"
 )
 
+// MIMEType is a typed string for MIME type values.
+type MIMEType string
+
 type EventData struct {
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
@@ -19,7 +22,7 @@ type EventData struct {
 }
 
 type Client interface {
-	ExtractEvent(ctx context.Context, r io.Reader, mimeType string) (*EventData, error)
+	ExtractEvent(ctx context.Context, r io.Reader, mimeType MIMEType) (*EventData, error)
 }
 
 func NewClient(cfg config.LLMConfig) (Client, error) {

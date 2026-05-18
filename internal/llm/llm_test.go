@@ -18,7 +18,7 @@ func TestMockClient_ExtractEvent(t *testing.T) {
 		t.Fatalf("NewClient(mock) error: %v", err)
 	}
 
-	event, err := client.ExtractEvent(context.Background(), strings.NewReader("test"), "text/plain")
+	event, err := client.ExtractEvent(context.Background(), strings.NewReader("test"), MIMEType("text/plain"))
 	if err != nil {
 		t.Fatalf("ExtractEvent() error: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestAIProxyClient_ExtractEvent(t *testing.T) {
 		t.Fatalf("NewClient(aiproxy) error: %v", err)
 	}
 
-	event, err := client.ExtractEvent(context.Background(), strings.NewReader("Meeting on March 15 at 2pm"), "text/plain")
+	event, err := client.ExtractEvent(context.Background(), strings.NewReader("Meeting on March 15 at 2pm"), MIMEType("text/plain"))
 	if err != nil {
 		t.Fatalf("ExtractEvent() error: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestAIProxyClient_ExtractEvent_WithCodeFence(t *testing.T) {
 		t.Fatalf("NewClient error: %v", err)
 	}
 
-	event, err := client.ExtractEvent(context.Background(), strings.NewReader("test"), "text/plain")
+	event, err := client.ExtractEvent(context.Background(), strings.NewReader("test"), MIMEType("text/plain"))
 	if err != nil {
 		t.Fatalf("ExtractEvent() error: %v", err)
 	}
@@ -144,7 +144,7 @@ func TestAIProxyClient_ExtractEvent_ImageMimeType(t *testing.T) {
 		if len(userMsg.Content) < 2 {
 			t.Fatal("expected at least 2 content parts in user message")
 		}
-		if userMsg.Content[0].Type != "image_url" {
+		if userMsg.Content[0].Type != partTypeImageURL {
 			t.Errorf("first part type = %q, want image_url", userMsg.Content[0].Type)
 		}
 		if !strings.HasPrefix(userMsg.Content[0].ImageURL.URL, "data:image/png;base64,") {
@@ -179,7 +179,7 @@ func TestAIProxyClient_ExtractEvent_ImageMimeType(t *testing.T) {
 		t.Fatalf("NewClient error: %v", err)
 	}
 
-	event, err := client.ExtractEvent(context.Background(), strings.NewReader("fake-png-data"), "image/png")
+	event, err := client.ExtractEvent(context.Background(), strings.NewReader("fake-png-data"), MIMEType("image/png"))
 	if err != nil {
 		t.Fatalf("ExtractEvent() error: %v", err)
 	}

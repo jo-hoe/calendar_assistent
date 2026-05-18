@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -10,17 +11,18 @@ import (
 	"time"
 
 	"github.com/jo-hoe/calendar-assistent/internal/config"
+	"github.com/jo-hoe/calendar-assistent/internal/llm"
 	"github.com/jo-hoe/calendar-assistent/internal/processor"
 )
 
-var allowedMIMETypes = map[string]bool{
-	"image/png":       true,
-	"image/jpeg":      true,
-	"image/gif":       true,
-	"image/webp":      true,
-	"application/pdf": true,
-	"text/plain":      true,
-	"text/html":       true,
+var allowedMIMETypes = map[llm.MIMEType]struct{}{
+	llm.MIMEType("image/png"):       {},
+	llm.MIMEType("image/jpeg"):      {},
+	llm.MIMEType("image/gif"):       {},
+	llm.MIMEType("image/webp"):      {},
+	llm.MIMEType("application/pdf"): {},
+	llm.MIMEType("text/plain"):      {},
+	llm.MIMEType("text/html"):       {},
 }
 
 type Server struct {
@@ -74,7 +76,7 @@ func (s *Server) handleArtifact(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, s.maxUpload)
 
 	if err := r.ParseMultipartForm(s.maxUpload); err != nil {
-		s.writeError(w, http.StatusBadRequest, "failed to parse multipart form: "+err.Error())
+		s.writeError(w, http.StatusBadRequest, fmt.Errorf("failed to parse multipart form: %w", err).Error())
 		return
 	}
 
@@ -85,24 +87,19 @@ func (s *Server) handleArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = file.Close() }()
 
-	mimeType := header.Header.Get("Content-Type")
+	mimeType := llm.MIMEType(header.Header.Get("Content-Type"))
 	if mimeType == "" || mimeType == "application/octet-stream" {
 		mimeType = detectMIMEType(header.Filename)
 	}
 
-	if !allowedMIMETypes[mimeType] {
+	if _, ok := allowedMIMETypes[mimeType]; !ok {
 		s.writeError(w, http.StatusUnsupportedMediaType, fmt.Sprintf("unsupported file type %q", mimeType))
 		return
 	}
 
 	result, err := s.processor.ProcessArtifact(r.Context(), file, mimeType)
 	if err != nil {
-		if strings.Contains(err.Error(), "could not extract") {
-			s.writeError(w, http.StatusUnprocessableEntity, err.Error())
-			return
-		}
-		s.logger.Error("processing artifact", "error", err)
-		s.writeError(w, http.StatusInternalServerError, "internal error processing artifact")
+		s.handleProcessingError(w, err)
 		return
 	}
 
@@ -125,18 +122,24 @@ func (s *Server) handleText(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := s.processor.ProcessArtifact(r.Context(), strings.NewReader(req.Text), "text/plain")
+	result, err := s.processor.ProcessArtifact(r.Context(), strings.NewReader(req.Text), llm.MIMEType("text/plain"))
 	if err != nil {
-		if strings.Contains(err.Error(), "could not extract") {
-			s.writeError(w, http.StatusUnprocessableEntity, err.Error())
-			return
-		}
-		s.logger.Error("processing text", "error", err)
-		s.writeError(w, http.StatusInternalServerError, "internal error processing text")
+		s.handleProcessingError(w, err)
 		return
 	}
 
 	s.writeJSON(w, http.StatusCreated, result)
+}
+
+// handleProcessingError dispatches processing errors to the appropriate HTTP response.
+// Extraction failures return 422 Unprocessable Entity; all other errors return 500.
+func (s *Server) handleProcessingError(w http.ResponseWriter, err error) {
+	if errors.Is(err, processor.ErrCannotExtract) {
+		http.Error(w, `{"error":"could not extract event from input"}`, http.StatusUnprocessableEntity)
+		return
+	}
+	s.logger.Error("processing event", "error", err)
+	http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 }
 
 func (s *Server) withAuth(next http.HandlerFunc) http.HandlerFunc {
@@ -189,25 +192,25 @@ func (s *Server) writeError(w http.ResponseWriter, status int, msg string) {
 	s.writeJSON(w, status, map[string]string{"error": msg})
 }
 
-func detectMIMEType(filename string) string {
+func detectMIMEType(filename string) llm.MIMEType {
 	lower := strings.ToLower(filename)
 	switch {
 	case strings.HasSuffix(lower, ".png"):
-		return "image/png"
+		return llm.MIMEType("image/png")
 	case strings.HasSuffix(lower, ".jpg"), strings.HasSuffix(lower, ".jpeg"):
-		return "image/jpeg"
+		return llm.MIMEType("image/jpeg")
 	case strings.HasSuffix(lower, ".gif"):
-		return "image/gif"
+		return llm.MIMEType("image/gif")
 	case strings.HasSuffix(lower, ".webp"):
-		return "image/webp"
+		return llm.MIMEType("image/webp")
 	case strings.HasSuffix(lower, ".pdf"):
-		return "application/pdf"
+		return llm.MIMEType("application/pdf")
 	case strings.HasSuffix(lower, ".txt"):
-		return "text/plain"
+		return llm.MIMEType("text/plain")
 	case strings.HasSuffix(lower, ".html"), strings.HasSuffix(lower, ".htm"):
-		return "text/html"
+		return llm.MIMEType("text/html")
 	default:
-		return "application/octet-stream"
+		return llm.MIMEType("application/octet-stream")
 	}
 }
 

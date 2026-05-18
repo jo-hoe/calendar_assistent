@@ -23,9 +23,10 @@ import (
 )
 
 const (
-	tokenURL       = "https://oauth2.googleapis.com/token" //nolint:gosec // not a credential
-	calendarAPIURL = "https://www.googleapis.com/calendar/v3"
-	scope          = "https://www.googleapis.com/auth/calendar.events"
+	tokenURL          = "https://oauth2.googleapis.com/token" //nolint:gosec // not a credential
+	calendarAPIURL    = "https://www.googleapis.com/calendar/v3"
+	scope             = "https://www.googleapis.com/auth/calendar.events"
+	tokenExpiryBuffer = 60 * time.Second
 )
 
 type Client struct {
@@ -118,11 +119,7 @@ func (c *Client) CreateEvent(ctx context.Context, event *llm.EventData) (string,
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		respBody, _ := io.ReadAll(resp.Body)
-		truncated := string(respBody)
-		if len(truncated) > 400 {
-			truncated = truncated[:400]
-		}
-		return "", fmt.Errorf("calendar API returned status %d: %s", resp.StatusCode, truncated)
+		return "", fmt.Errorf("calendar API returned status %d: %s", resp.StatusCode, truncate(string(respBody), 400))
 	}
 
 	var result struct {
@@ -183,23 +180,29 @@ func (c *Client) getAccessToken(ctx context.Context) (string, error) {
 	}
 
 	c.cachedToken = tokenResp.AccessToken
-	c.tokenExpiry = now.Add(time.Duration(tokenResp.ExpiresIn)*time.Second - 60*time.Second)
+	c.tokenExpiry = now.Add(time.Duration(tokenResp.ExpiresIn)*time.Second - tokenExpiryBuffer)
 
 	return c.cachedToken, nil
 }
 
 func (c *Client) signJWT(iat, exp time.Time) (string, error) {
 	header := map[string]string{"alg": "RS256", "typ": "JWT"}
-	headerJSON, _ := json.Marshal(header)
-
-	claims := map[string]interface{}{
-		"iss":   c.creds.ClientEmail,
-		"scope": scope,
-		"aud":   c.creds.TokenURI,
-		"iat":   iat.Unix(),
-		"exp":   exp.Unix(),
+	headerJSON, err := json.Marshal(header)
+	if err != nil {
+		return "", fmt.Errorf("marshaling JWT header: %w", err)
 	}
-	claimsJSON, _ := json.Marshal(claims)
+
+	claims := jwtClaims{
+		Issuer:    c.creds.ClientEmail,
+		Scope:     scope,
+		Audience:  c.creds.TokenURI,
+		IssuedAt:  iat.Unix(),
+		ExpiresAt: exp.Unix(),
+	}
+	claimsJSON, err := json.Marshal(claims)
+	if err != nil {
+		return "", fmt.Errorf("marshaling JWT claims: %w", err)
+	}
 
 	headerB64 := base64.RawURLEncoding.EncodeToString(headerJSON)
 	claimsB64 := base64.RawURLEncoding.EncodeToString(claimsJSON)
@@ -225,22 +228,28 @@ func parsePrivateKey(pemData string) (*rsa.PrivateKey, error) {
 	if block == nil {
 		return nil, fmt.Errorf("failed to decode PEM block from private key")
 	}
-
 	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		var rsaKey *rsa.PrivateKey
-		rsaKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse private key: %w", err)
+	if err == nil {
+		rsaKey, ok := key.(*rsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf("private key is not RSA")
 		}
 		return rsaKey, nil
 	}
-
-	rsaKey, ok := key.(*rsa.PrivateKey)
-	if !ok {
-		return nil, fmt.Errorf("private key is not RSA")
+	// fallback to PKCS1
+	rsaKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse private key: %w", err)
 	}
 	return rsaKey, nil
+}
+
+type jwtClaims struct {
+	Issuer    string `json:"iss"`
+	Scope     string `json:"scope"`
+	Audience  string `json:"aud"`
+	IssuedAt  int64  `json:"iat"`
+	ExpiresAt int64  `json:"exp"`
 }
 
 type calendarEvent struct {
@@ -254,4 +263,11 @@ type calendarEvent struct {
 type eventTime struct {
 	DateTime string `json:"dateTime"`
 	TimeZone string `json:"timeZone"`
+}
+
+func truncate(s string, n int) string {
+	if len(s) > n {
+		return s[:n]
+	}
+	return s
 }

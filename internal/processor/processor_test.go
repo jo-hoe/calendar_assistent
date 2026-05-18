@@ -15,7 +15,7 @@ type mockLLMClient struct {
 	err   error
 }
 
-func (m *mockLLMClient) ExtractEvent(_ context.Context, _ io.Reader, _ string) (*llm.EventData, error) {
+func (m *mockLLMClient) ExtractEvent(_ context.Context, _ io.Reader, _ llm.MIMEType) (*llm.EventData, error) {
 	return m.event, m.err
 }
 
@@ -38,7 +38,7 @@ func TestProcessor_ProcessArtifact(t *testing.T) {
 
 	p := New(&mockLLMClient{event: event}, &mockCalendar{id: "evt-123"})
 
-	result, err := p.ProcessArtifact(context.Background(), strings.NewReader("test input"), "text/plain")
+	result, err := p.ProcessArtifact(context.Background(), strings.NewReader("test input"), llm.MIMEType("text/plain"))
 	if err != nil {
 		t.Fatalf("ProcessArtifact() error: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestProcessor_ProcessArtifact_EmptyTitle(t *testing.T) {
 	event := &llm.EventData{Title: ""}
 	p := New(&mockLLMClient{event: event}, &mockCalendar{id: "x"})
 
-	_, err := p.ProcessArtifact(context.Background(), strings.NewReader("test"), "text/plain")
+	_, err := p.ProcessArtifact(context.Background(), strings.NewReader("test"), llm.MIMEType("text/plain"))
 	if err == nil {
 		t.Fatal("expected error for empty title")
 	}

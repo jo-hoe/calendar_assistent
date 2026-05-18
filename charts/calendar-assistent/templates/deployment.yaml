@@ -61,7 +61,12 @@ spec:
               readOnly: true
             {{- if .Values.googleCredentials }}
             - name: google-credentials
-              mountPath: /app/secrets
+              mountPath: /app/secrets/google
+              readOnly: true
+            {{- end }}
+            {{- if .Values.s3Credentials }}
+            - name: s3-credentials
+              mountPath: /app/secrets/s3
               readOnly: true
             {{- end }}
           {{- with .Values.resources }}
@@ -84,6 +89,11 @@ spec:
         - name: google-credentials
           secret:
             secretName: {{ include "calendar-assistent.fullname" . }}-google-credentials
+        {{- end }}
+        {{- if .Values.s3Credentials }}
+        - name: s3-credentials
+          secret:
+            secretName: {{ include "calendar-assistent.fullname" . }}-s3-credentials
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
