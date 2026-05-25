@@ -4,17 +4,14 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
+	"github.com/jo-hoe/calendar-assistent/internal/calendar/icsutil"
 	"github.com/jo-hoe/calendar-assistent/internal/llm"
 )
 
 const (
 	icsTimeLayout = "20060102T150405Z"
 	icsDateLayout = "20060102"
-	crlf          = "\r\n"
-	maxLineLength = 75
 )
 
 type vevent struct {
@@ -106,7 +103,7 @@ func newVEvent(event *llm.EventData) vevent {
 	start := event.StartTime.In(loc)
 	end := endTime.In(loc)
 
-	titleSlug := sanitizeUID(event.Title)
+	titleSlug := icsutil.SanitizeUID(event.Title)
 	if titleSlug == "" {
 		titleSlug = "event"
 	}
@@ -118,13 +115,13 @@ func newVEvent(event *llm.EventData) vevent {
 		"DTSTAMP:" + now,
 		"DTSTART:" + start.UTC().Format(icsTimeLayout),
 		"DTEND:" + end.UTC().Format(icsTimeLayout),
-		"SUMMARY:" + escapeText(event.Title),
+		"SUMMARY:" + icsutil.EscapeText(event.Title),
 	}
 	if event.Description != "" {
-		lines = append(lines, "DESCRIPTION:"+escapeText(event.Description))
+		lines = append(lines, "DESCRIPTION:"+icsutil.EscapeText(event.Description))
 	}
 	if event.Location != "" {
-		lines = append(lines, "LOCATION:"+escapeText(event.Location))
+		lines = append(lines, "LOCATION:"+icsutil.EscapeText(event.Location))
 	}
 
 	return vevent{
@@ -137,21 +134,21 @@ func newVEvent(event *llm.EventData) vevent {
 
 func serializeICS(events []vevent) []byte {
 	var sb strings.Builder
-	sb.WriteString("BEGIN:VCALENDAR" + crlf)
-	sb.WriteString("VERSION:2.0" + crlf)
-	sb.WriteString("PRODID:-//calendar-assistent//EN" + crlf)
-	sb.WriteString("CALSCALE:GREGORIAN" + crlf)
-	sb.WriteString("METHOD:PUBLISH" + crlf)
+	sb.WriteString("BEGIN:VCALENDAR" + icsutil.CRLF)
+	sb.WriteString("VERSION:2.0" + icsutil.CRLF)
+	sb.WriteString("PRODID:-//calendar-assistent//EN" + icsutil.CRLF)
+	sb.WriteString("CALSCALE:GREGORIAN" + icsutil.CRLF)
+	sb.WriteString("METHOD:PUBLISH" + icsutil.CRLF)
 
 	for _, ev := range events {
-		sb.WriteString("BEGIN:VEVENT" + crlf)
+		sb.WriteString("BEGIN:VEVENT" + icsutil.CRLF)
 		for _, line := range ev.raw {
-			sb.WriteString(foldLine(line) + crlf)
+			sb.WriteString(icsutil.FoldLine(line) + icsutil.CRLF)
 		}
-		sb.WriteString("END:VEVENT" + crlf)
+		sb.WriteString("END:VEVENT" + icsutil.CRLF)
 	}
 
-	sb.WriteString("END:VCALENDAR" + crlf)
+	sb.WriteString("END:VCALENDAR" + icsutil.CRLF)
 	return []byte(sb.String())
 }
 
@@ -191,60 +188,4 @@ func parseICSTime(s string) (time.Time, error) {
 		return t, nil
 	}
 	return time.Time{}, fmt.Errorf("unrecognised ICS time format %q", s)
-}
-
-func sanitizeUID(s string) string {
-	s = strings.Map(func(r rune) rune {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' {
-			return r
-		}
-		return '-'
-	}, s)
-	if len(s) > 40 {
-		s = s[:40]
-	}
-	return s
-}
-
-func escapeText(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, ";", `\;`)
-	s = strings.ReplaceAll(s, ",", `\,`)
-	s = strings.ReplaceAll(s, "\n", `\n`)
-	return s
-}
-
-// foldLine wraps lines longer than maxLineLength octets per RFC 5545 §3.1.
-// Split points are always on valid UTF-8 rune boundaries.
-func foldLine(line string) string {
-	b := []byte(line)
-	if len(b) <= maxLineLength {
-		return line
-	}
-	var sb strings.Builder
-
-	// First line: up to maxLineLength bytes.
-	end := maxLineLength
-	for end > 0 && !utf8.RuneStart(b[end]) {
-		end--
-	}
-	sb.Write(b[:end])
-	b = b[end:]
-
-	// Continuation lines: CRLF + space + up to (maxLineLength-1) bytes.
-	for len(b) > 0 {
-		sb.WriteString(crlf + " ")
-		chunk := maxLineLength - 1
-		if chunk >= len(b) {
-			sb.Write(b)
-			break
-		}
-		// Back up to a rune boundary.
-		for chunk > 0 && !utf8.RuneStart(b[chunk]) {
-			chunk--
-		}
-		sb.Write(b[:chunk])
-		b = b[chunk:]
-	}
-	return sb.String()
 }

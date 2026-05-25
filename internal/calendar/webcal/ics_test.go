@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jo-hoe/calendar-assistent/internal/calendar/icsutil"
 	"github.com/jo-hoe/calendar-assistent/internal/llm"
 )
 
@@ -87,10 +88,84 @@ func TestSerializeICS(t *testing.T) {
 
 func TestFoldLine(t *testing.T) {
 	long := "DESCRIPTION:" + strings.Repeat("x", 100)
-	folded := foldLine(long)
+	folded := icsutil.FoldLine(long)
 	for _, line := range strings.Split(strings.ReplaceAll(folded, "\r\n", "\n"), "\n") {
-		if len(line) > maxLineLength {
+		if len(line) > icsutil.MaxLineLength {
 			t.Errorf("line too long (%d): %q", len(line), line)
 		}
+	}
+}
+
+func TestFoldLine_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		check func(t *testing.T, got string)
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			check: func(t *testing.T, got string) {
+				if got != "" {
+					t.Errorf("FoldLine(%q) = %q, want empty", "", got)
+				}
+			},
+		},
+		{
+			name:  "shorter than 75 bytes returned unchanged",
+			input: "SUMMARY:Hello",
+			check: func(t *testing.T, got string) {
+				if got != "SUMMARY:Hello" {
+					t.Errorf("FoldLine short string = %q, want unchanged", got)
+				}
+			},
+		},
+		{
+			name:  "exactly 75 bytes no fold needed",
+			input: strings.Repeat("a", icsutil.MaxLineLength),
+			check: func(t *testing.T, got string) {
+				if got != strings.Repeat("a", icsutil.MaxLineLength) {
+					t.Errorf("FoldLine 75-byte string should be returned unchanged, got %q", got)
+				}
+				if strings.Contains(got, "\r\n") {
+					t.Errorf("FoldLine 75-byte string should not contain CRLF")
+				}
+			},
+		},
+		{
+			// 74 ASCII bytes then "é" (2-byte UTF-8); the rune starts at byte 74,
+			// so the fold must not cut between its two bytes.
+			name:  "multibyte UTF-8 at fold boundary not split",
+			input: strings.Repeat("a", 74) + "é" + strings.Repeat("b", 10),
+			check: func(t *testing.T, got string) {
+				for i, line := range strings.Split(strings.ReplaceAll(got, "\r\n", "\n"), "\n") {
+					if len(line) > icsutil.MaxLineLength {
+						t.Errorf("segment %d exceeds MaxLineLength (%d): %q", i, len(line), line)
+					}
+				}
+				reassembled := strings.ReplaceAll(got, "\r\n ", "")
+				want := strings.Repeat("a", 74) + "é" + strings.Repeat("b", 10)
+				if reassembled != want {
+					t.Errorf("FoldLine round-trip mismatch: got %q, want %q", reassembled, want)
+				}
+			},
+		},
+		{
+			name:  "200-byte line all segments within 75 bytes",
+			input: strings.Repeat("x", 200),
+			check: func(t *testing.T, got string) {
+				for i, line := range strings.Split(strings.ReplaceAll(got, "\r\n", "\n"), "\n") {
+					if len(line) > icsutil.MaxLineLength {
+						t.Errorf("segment %d exceeds MaxLineLength (%d): %q", i, len(line), line)
+					}
+				}
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := icsutil.FoldLine(tc.input)
+			tc.check(t, got)
+		})
 	}
 }

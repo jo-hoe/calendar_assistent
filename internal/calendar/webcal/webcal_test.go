@@ -2,6 +2,7 @@ package webcal
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -11,8 +12,9 @@ import (
 
 func newTestProvider(ttl time.Duration) *webcalProvider {
 	return &webcalProvider{
-		store: &MockStorage{},
-		ttl:   ttl,
+		store:  &MockStorage{},
+		ttl:    ttl,
+		logger: slog.Default(),
 	}
 }
 

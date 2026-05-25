@@ -227,3 +227,210 @@ func writeTempConfig(t *testing.T, content string) string {
 	}
 	return path
 }
+
+func TestValidateServer_LogLevel(t *testing.T) {
+	valid := []LogLevel{LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelWarning, LogLevelError}
+	for _, level := range valid {
+		t.Run("valid_"+string(level), func(t *testing.T) {
+			if err := validateServer(&ServerConfig{LogLevel: level}); err != nil {
+				t.Errorf("validateServer() logLevel=%q: unexpected error: %v", level, err)
+			}
+		})
+	}
+	invalid := []LogLevel{"trace", "fatal", "WARN", "INFO", "verbose"}
+	for _, level := range invalid {
+		t.Run("invalid_"+string(level), func(t *testing.T) {
+			if err := validateServer(&ServerConfig{LogLevel: level}); err == nil {
+				t.Errorf("validateServer() logLevel=%q: expected error, got nil", level)
+			}
+		})
+	}
+}
+
+func TestValidateServer_LogLevel_ViaLoad(t *testing.T) {
+	tests := []struct {
+		name      string
+		level     string
+		wantError bool
+	}{
+		{"debug valid", "debug", false},
+		{"info valid", "info", false},
+		{"warn valid", "warn", false},
+		{"warning valid", "warning", false},
+		{"error valid", "error", false},
+		{"trace invalid", "trace", true},
+		{"WARN uppercase invalid", "WARN", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			content := `
+llm:
+  provider: "mock"
+calendar:
+  provider: "google"
+  google:
+    credentialsFile: "/tmp/creds.json"
+server:
+  logLevel: "` + tc.level + `"
+`
+			_, err := Load(writeTempConfig(t, content))
+			if tc.wantError && err == nil {
+				t.Errorf("Load() logLevel=%q: expected error, got nil", tc.level)
+			}
+			if !tc.wantError && err != nil {
+				t.Errorf("Load() logLevel=%q: unexpected error: %v", tc.level, err)
+			}
+		})
+	}
+}
+
+func TestValidateSMTP_AuthMethod(t *testing.T) {
+	tests := []struct {
+		name      string
+		method    SMTPAuthMethod
+		wantError bool
+	}{
+		{"none valid", SMTPAuthNone, false},
+		{"plain valid", SMTPAuthPlain, false},
+		{"login valid", SMTPAuthLogin, false},
+		{"digest-md5 invalid", "digest-md5", true},
+		{"PLAIN uppercase invalid", "PLAIN", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			creds := ""
+			if tc.method != SMTPAuthNone {
+				creds = "/tmp/creds.json" //nolint:gosec // not a real credential, test path only
+			}
+			cfg := &SMTPConfig{
+				AuthMethod:      tc.method,
+				Host:            "smtp.example.com",
+				From:            "a@example.com",
+				To:              "b@example.com",
+				CredentialsFile: creds,
+			}
+			err := validateSMTP(cfg)
+			if tc.wantError && err == nil {
+				t.Errorf("validateSMTP() authMethod=%q: expected error, got nil", tc.method)
+			}
+			if !tc.wantError && err != nil {
+				t.Errorf("validateSMTP() authMethod=%q: unexpected error: %v", tc.method, err)
+			}
+		})
+	}
+}
+
+func TestValidateSMTP_AuthMethod_ViaLoad(t *testing.T) {
+	tests := []struct {
+		name      string
+		method    string
+		credsFile string
+		wantError bool
+	}{
+		{"none valid", "none", "", false},
+		{"plain valid", "plain", "/tmp/creds.json", false},
+		{"login valid", "login", "/tmp/creds.json", false},
+		{"cram-md5 invalid", "cram-md5", "", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			credsLine := ""
+			if tc.credsFile != "" {
+				credsLine = `    credentialsFile: "` + tc.credsFile + `"`
+			}
+			content := `
+llm:
+  provider: "mock"
+calendar:
+  provider: "smtp"
+  smtp:
+    host: "smtp.example.com"
+    from: "a@example.com"
+    to: "b@example.com"
+    authMethod: "` + tc.method + `"
+` + credsLine + `
+`
+			_, err := Load(writeTempConfig(t, content))
+			if tc.wantError && err == nil {
+				t.Errorf("Load() smtp.authMethod=%q: expected error, got nil", tc.method)
+			}
+			if !tc.wantError && err != nil {
+				t.Errorf("Load() smtp.authMethod=%q: unexpected error: %v", tc.method, err)
+			}
+		})
+	}
+}
+
+func TestLoad_AiproxyMissingAPIKey(t *testing.T) {
+	content := `
+llm:
+  provider: "aiproxy"
+  aiproxy:
+    baseUrl: "http://localhost:11434"
+calendar:
+  provider: "google"
+  google:
+    credentialsFile: "/tmp/creds.json"
+`
+	_, err := Load(writeTempConfig(t, content))
+	if err == nil {
+		t.Fatal("Load() expected error for missing aiproxy.apiKey")
+	}
+}
+
+func TestValidateWebcalStorage_MissingBucket(t *testing.T) {
+	content := `
+llm:
+  provider: "mock"
+calendar:
+  provider: "webcal"
+  webcal:
+    storage:
+      provider: "s3"
+      s3:
+        region: "us-east-1"
+        credentialsFile: "/tmp/creds"
+`
+	_, err := Load(writeTempConfig(t, content))
+	if err == nil {
+		t.Fatal("Load() expected error for missing s3 bucket")
+	}
+}
+
+func TestValidateWebcalStorage_MissingRegion(t *testing.T) {
+	content := `
+llm:
+  provider: "mock"
+calendar:
+  provider: "webcal"
+  webcal:
+    storage:
+      provider: "s3"
+      s3:
+        bucket: "my-bucket"
+        credentialsFile: "/tmp/creds"
+`
+	_, err := Load(writeTempConfig(t, content))
+	if err == nil {
+		t.Fatal("Load() expected error for missing s3 region")
+	}
+}
+
+func TestValidateWebcalStorage_MissingCredentialsFile(t *testing.T) {
+	content := `
+llm:
+  provider: "mock"
+calendar:
+  provider: "webcal"
+  webcal:
+    storage:
+      provider: "s3"
+      s3:
+        bucket: "my-bucket"
+        region: "us-east-1"
+`
+	_, err := Load(writeTempConfig(t, content))
+	if err == nil {
+		t.Fatal("Load() expected error for missing s3 credentialsFile")
+	}
+}

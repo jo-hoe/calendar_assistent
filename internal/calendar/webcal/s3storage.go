@@ -118,6 +118,25 @@ func (s *s3Storage) Upload(ctx context.Context, data []byte) error {
 	return nil
 }
 
+// canonicalHeaders builds the canonical header string and signed header names
+// required by AWS Signature Version 4. When hasBody is true (PUT/POST),
+// content-type is included in the signed headers.
+func canonicalHeaders(hasBody bool, host, contentType, bodyHash, date string) (canonical, signed string) {
+	if hasBody {
+		canonical = "content-type:" + contentType + "\n" +
+			"host:" + host + "\n" +
+			"x-amz-content-sha256:" + bodyHash + "\n" +
+			"x-amz-date:" + date + "\n"
+		signed = "content-type;host;x-amz-content-sha256;x-amz-date"
+	} else {
+		canonical = "host:" + host + "\n" +
+			"x-amz-content-sha256:" + bodyHash + "\n" +
+			"x-amz-date:" + date + "\n"
+		signed = "host;x-amz-content-sha256;x-amz-date"
+	}
+	return canonical, signed
+}
+
 // signV4 adds AWS Signature Version 4 Authorization header to req.
 func (s *s3Storage) signV4(req *http.Request, body []byte, now time.Time) {
 	dateStamp := now.Format("20060102")
@@ -128,22 +147,8 @@ func (s *s3Storage) signV4(req *http.Request, body []byte, now time.Time) {
 	bodyHash := hashSHA256(body)
 	req.Header.Set("x-amz-content-sha256", bodyHash)
 
-	// Canonical headers — must be sorted and lowercase.
-	host := req.URL.Host
-	var canonicalHeaders, signedHeaders string
 	ct := req.Header.Get("Content-Type")
-	if ct != "" {
-		canonicalHeaders = "content-type:" + ct + "\n" +
-			"host:" + host + "\n" +
-			"x-amz-content-sha256:" + bodyHash + "\n" +
-			"x-amz-date:" + amzDate + "\n"
-		signedHeaders = "content-type;host;x-amz-content-sha256;x-amz-date"
-	} else {
-		canonicalHeaders = "host:" + host + "\n" +
-			"x-amz-content-sha256:" + bodyHash + "\n" +
-			"x-amz-date:" + amzDate + "\n"
-		signedHeaders = "host;x-amz-content-sha256;x-amz-date"
-	}
+	canonHdrs, signedHdrs := canonicalHeaders(ct != "", req.URL.Host, ct, bodyHash, amzDate)
 
 	canonicalURI := req.URL.EscapedPath()
 	if canonicalURI == "" {
@@ -151,12 +156,7 @@ func (s *s3Storage) signV4(req *http.Request, body []byte, now time.Time) {
 	}
 
 	canonicalRequest := strings.Join([]string{
-		req.Method,
-		canonicalURI,
-		req.URL.RawQuery,
-		canonicalHeaders,
-		signedHeaders,
-		bodyHash,
+		req.Method, canonicalURI, req.URL.RawQuery, canonHdrs, signedHdrs, bodyHash,
 	}, "\n")
 
 	credentialScope := dateStamp + "/" + s.region + "/s3/" + awsV4TerminationString
@@ -167,7 +167,7 @@ func (s *s3Storage) signV4(req *http.Request, body []byte, now time.Time) {
 
 	req.Header.Set("Authorization", fmt.Sprintf(
 		"AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s",
-		s.accessKeyID, credentialScope, signedHeaders, signature,
+		s.accessKeyID, credentialScope, signedHdrs, signature,
 	))
 }
 

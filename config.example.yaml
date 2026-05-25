@@ -19,7 +19,7 @@ llm:
     maxTokens: 4096
 
 calendar:
-  provider: "google"  # "google" | "webcal" | "mock"
+  provider: "google"  # "google" | "webcal" | "smtp" | "mock"
   google:
     credentialsFile: "/app/secrets/google/google-credentials.json"
     calendarId: "primary"
@@ -35,3 +35,11 @@ calendar:
         credentialsFile: "/app/secrets/s3-credentials.json"
         endpoint: ""         # optional: override for MinIO / LocalStack, e.g. "http://localhost:4566"
         publicUrl: "https://my-bucket.s3.eu-central-1.amazonaws.com/calendar.ics"
+  smtp:
+    host: "smtp.gmail.com"
+    port: 587
+    authMethod: "plain"   # "none", "plain", or "login"
+    credentialsFile: "/app/secrets/smtp/smtp-credentials.json"
+    from: "Calendar Assistent <noreply@example.com>"
+    to: "recipient@example.com"
+    tls: false            # set true for port 465 (implicit TLS); false uses STARTTLS on port 587

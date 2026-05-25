@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -146,7 +147,7 @@ func (s *Server) withAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if s.apiKey != "" {
 			key := r.Header.Get("X-API-Key")
-			if key != s.apiKey {
+			if subtle.ConstantTimeCompare([]byte(key), []byte(s.apiKey)) != 1 {
 				s.writeError(w, http.StatusUnauthorized, "invalid or missing API key")
 				return
 			}

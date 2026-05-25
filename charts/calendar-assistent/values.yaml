@@ -84,7 +84,17 @@ config:
           credentialsFile: "/app/secrets/s3-credentials.json"
           endpoint: ""
           publicUrl: ""
+    smtp:
+      host: ""
+      port: 587
+      authMethod: "plain"   # "none", "plain", or "login"
+      credentialsFile: "/app/secrets/smtp/smtp-credentials.json"
+      from: ""
+      to: ""
+      tls: false
 
 googleCredentials: ""
 
 s3Credentials: ""  # base64-encoded JSON: {"accessKeyId":"...","secretAccessKey":"..."}
+
+smtpCredentials: ""  # base64-encoded JSON: {"username":"...","password":"...","organizer":"mailto:you@example.com"}

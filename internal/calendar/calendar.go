@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/jo-hoe/calendar-assistent/internal/calendar/google"
+	smtppkg "github.com/jo-hoe/calendar-assistent/internal/calendar/smtp"
 	"github.com/jo-hoe/calendar-assistent/internal/calendar/webcal"
 	"github.com/jo-hoe/calendar-assistent/internal/config"
 	"github.com/jo-hoe/calendar-assistent/internal/llm"
@@ -17,11 +18,13 @@ type Provider interface {
 
 func NewProvider(cfg config.CalendarConfig, logger *slog.Logger) (Provider, error) {
 	switch cfg.Provider {
-	case "google":
+	case config.CalendarProviderGoogle:
 		return google.New(cfg.Google)
-	case "webcal":
+	case config.CalendarProviderWebcal:
 		return webcal.New(cfg.Webcal, logger)
-	case "mock":
+	case config.CalendarProviderSMTP:
+		return smtppkg.New(cfg.SMTP, logger)
+	case config.CalendarProviderMock:
 		return newMockProvider()
 	default:
 		return nil, fmt.Errorf("unsupported calendar provider %q", cfg.Provider)

@@ -69,6 +69,11 @@ spec:
               mountPath: /app/secrets/s3
               readOnly: true
             {{- end }}
+            {{- if .Values.smtpCredentials }}
+            - name: smtp-credentials
+              mountPath: /app/secrets/smtp
+              readOnly: true
+            {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -94,6 +99,11 @@ spec:
         - name: s3-credentials
           secret:
             secretName: {{ include "calendar-assistent.fullname" . }}-s3-credentials
+        {{- end }}
+        {{- if .Values.smtpCredentials }}
+        - name: smtp-credentials
+          secret:
+            secretName: {{ include "calendar-assistent.fullname" . }}-smtp-credentials
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

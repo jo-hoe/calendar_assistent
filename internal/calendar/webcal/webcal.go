@@ -25,6 +25,9 @@ type webcalProvider struct {
 }
 
 func New(cfg config.WebcalConfig, logger *slog.Logger) (*webcalProvider, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	var store storage
 	var publicURL string
 	switch cfg.Storage.Provider {
@@ -84,11 +87,7 @@ func (p *webcalProvider) CreateEvent(ctx context.Context, event *llm.EventData) 
 	if p.publicURL != "" {
 		args = append(args, "url", p.publicURL)
 	}
-	logger := p.logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	logger.Info("webcal .ics updated", args...)
+	p.logger.Info("webcal .ics updated", args...)
 
 	return "", nil
 }

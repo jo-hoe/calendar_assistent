@@ -208,6 +208,69 @@ calendar:
 
 > **Note:** Google refreshes external calendars infrequently (up to 24 hours). New events may not appear immediately.
 
+## SMTP Calendar Provider
+
+The `smtp` provider sends a `METHOD:REQUEST` iCalendar email to the configured recipient. Most email clients (Outlook, Apple Mail, Thunderbird, Gmail) recognise this format and present the recipient with **Accept / Decline / Tentative** buttons, adding the event to their calendar on acceptance.
+
+### How it works
+
+On every `CreateEvent` call the app:
+1. Builds a VEVENT wrapped in a `text/calendar; method=REQUEST` MIME part.
+2. Connects to the configured SMTP server (STARTTLS on port 587 by default, implicit TLS on port 465 when `tls: true`).
+3. Authenticates using the chosen `authMethod` (`plain`, `login`, or `none` for open relays).
+4. Sends the message from `from` to `to`.
+
+### Credentials file
+
+Create a JSON file with your SMTP credentials:
+
+```json
+{"username":"smtp-user@example.com","password":"app-password","organizer":"mailto:sender@example.com"}
+```
+
+- `username` / `password` — SMTP login credentials.
+- `organizer` — shown as the meeting organiser in the recipient's calendar app (use `mailto:` prefix).
+- For `authMethod: "none"` (open relay) the credentials file is not required.
+
+### Config
+
+```yaml
+calendar:
+  provider: "smtp"
+  smtp:
+    host: "smtp.gmail.com"
+    port: 587
+    authMethod: "plain"   # "none", "plain", or "login"
+    credentialsFile: "/app/secrets/smtp/smtp-credentials.json"
+    from: "Calendar Assistent <noreply@example.com>"
+    to: "recipient@example.com"
+    tls: false            # set true for port 465 (implicit TLS); false uses STARTTLS on port 587
+```
+
+### Kubernetes / Helm
+
+Supply the credentials file content (base64-encoded) as `smtpCredentials` in your Helm values:
+
+```yaml
+smtpCredentials: "<base64-encoded JSON>"
+```
+
+The chart creates a Kubernetes Secret and mounts it at `/app/secrets/smtp/smtp-credentials.json`, which matches the default `credentialsFile` path above.
+
+### Notes
+
+- Gmail requires an **App Password** (not your regular account password). Generate one at [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
+- Use port **465** with `tls: true` for implicit TLS; use port **587** with `tls: false` for STARTTLS (recommended default).
+- For open relay / internal SMTP servers, set `authMethod: "none"` and omit the credentials file.
+
+### Provider comparison
+
+| Provider | Writes to | Recipient action |
+|----------|-----------|-----------------|
+| google   | Google Calendar directly | None — event appears immediately |
+| webcal   | S3 `.ics` file | Subscribe once; updates appear with delay |
+| smtp     | Email inbox | Accept / Decline prompt |
+
 ## Security
 
 - If `server.apiKey` is set, all API requests must include header `X-API-Key`

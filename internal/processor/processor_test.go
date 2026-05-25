@@ -2,6 +2,7 @@ package processor
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -58,5 +59,42 @@ func TestProcessor_ProcessArtifact_EmptyTitle(t *testing.T) {
 	_, err := p.ProcessArtifact(context.Background(), strings.NewReader("test"), llm.MIMEType("text/plain"))
 	if err == nil {
 		t.Fatal("expected error for empty title")
+	}
+}
+
+func TestProcessor_LLMError_WrapsErrCannotExtract(t *testing.T) {
+	llmErr := errors.New("llm service unavailable")
+	p := New(&mockLLMClient{err: llmErr}, &mockCalendar{id: "x"})
+
+	_, err := p.ProcessArtifact(context.Background(), strings.NewReader("data"), llm.MIMEType("text/plain"))
+	if err == nil {
+		t.Fatal("expected error when llm returns error")
+	}
+	if !errors.Is(err, ErrCannotExtract) {
+		t.Errorf("expected error to wrap ErrCannotExtract, got: %v", err)
+	}
+	if !errors.Is(err, llmErr) {
+		t.Errorf("expected error to also wrap original llm error, got: %v", err)
+	}
+}
+
+func TestProcessor_CalendarError_NotWrappedAsErrCannotExtract(t *testing.T) {
+	event := &llm.EventData{
+		Title:     "Meeting",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+	}
+	calErr := errors.New("calendar backend down")
+	p := New(&mockLLMClient{event: event}, &mockCalendar{err: calErr})
+
+	_, err := p.ProcessArtifact(context.Background(), strings.NewReader("data"), llm.MIMEType("text/plain"))
+	if err == nil {
+		t.Fatal("expected error when calendar.CreateEvent returns error")
+	}
+	if errors.Is(err, ErrCannotExtract) {
+		t.Errorf("calendar error should NOT be wrapped as ErrCannotExtract")
+	}
+	if !errors.Is(err, calErr) {
+		t.Errorf("expected error to wrap original calendar error, got: %v", err)
 	}
 }

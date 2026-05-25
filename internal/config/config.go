@@ -19,6 +19,7 @@ const (
 	CalendarProviderGoogle CalendarProvider = "google"
 	CalendarProviderWebcal CalendarProvider = "webcal"
 	CalendarProviderMock   CalendarProvider = "mock"
+	CalendarProviderSMTP   CalendarProvider = "smtp"
 
 	LLMProviderMock    LLMProvider = "mock"
 	LLMProviderAIProxy LLMProvider = "aiproxy"
@@ -31,6 +32,14 @@ const (
 	LogLevelWarn    LogLevel = "warn"
 	LogLevelWarning LogLevel = "warning"
 	LogLevelError   LogLevel = "error"
+)
+
+type SMTPAuthMethod string
+
+const (
+	SMTPAuthNone  SMTPAuthMethod = "none"
+	SMTPAuthPlain SMTPAuthMethod = "plain"
+	SMTPAuthLogin SMTPAuthMethod = "login"
 )
 
 type Config struct {
@@ -67,6 +76,7 @@ type CalendarConfig struct {
 	Provider CalendarProvider     `yaml:"provider"`
 	Google   GoogleCalendarConfig `yaml:"google"`
 	Webcal   WebcalConfig         `yaml:"webcal"`
+	SMTP     SMTPConfig           `yaml:"smtp"`
 }
 
 type WebcalConfig struct {
@@ -92,6 +102,16 @@ type GoogleCalendarConfig struct {
 	CredentialsFile string `yaml:"credentialsFile"`
 	CalendarID      string `yaml:"calendarId"`
 	TimeZone        string `yaml:"timeZone"`
+}
+
+type SMTPConfig struct {
+	Host            string         `yaml:"host"`
+	Port            int            `yaml:"port"`
+	AuthMethod      SMTPAuthMethod `yaml:"authMethod"`
+	CredentialsFile string         `yaml:"credentialsFile"` // required when authMethod != "none"
+	From            string         `yaml:"from"`            // sender display name or email
+	To              string         `yaml:"to"`              // recipient email address
+	TLS             bool           `yaml:"tls"`             // use TLS (port 465); false = STARTTLS or plain
 }
 
 type Duration struct {
@@ -263,13 +283,32 @@ func applyDefaults(cfg *Config) {
 	if cfg.Calendar.Webcal.Storage.S3.Key == "" {
 		cfg.Calendar.Webcal.Storage.S3.Key = defaultS3Key
 	}
+	if cfg.Calendar.SMTP.Port == 0 {
+		cfg.Calendar.SMTP.Port = 587
+	}
+	if cfg.Calendar.SMTP.AuthMethod == "" {
+		cfg.Calendar.SMTP.AuthMethod = SMTPAuthPlain
+	}
 }
 
 func validate(cfg *Config) error {
+	if err := validateServer(&cfg.Server); err != nil {
+		return err
+	}
 	if err := validateLLM(&cfg.LLM); err != nil {
 		return err
 	}
 	return validateCalendar(&cfg.Calendar)
+}
+
+func validateServer(cfg *ServerConfig) error {
+	switch cfg.LogLevel {
+	case LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelWarning, LogLevelError:
+	default:
+		return fmt.Errorf("unsupported server.logLevel %q (must be one of %q, %q, %q, %q, %q)",
+			cfg.LogLevel, LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelWarning, LogLevelError)
+	}
+	return nil
 }
 
 func validateLLM(cfg *LLMConfig) error {
@@ -283,6 +322,9 @@ func validateLLM(cfg *LLMConfig) error {
 		if cfg.AIProxy.BaseURL == "" {
 			return fmt.Errorf("llm.aiproxy.baseUrl is required when provider is %q", LLMProviderAIProxy)
 		}
+		if cfg.AIProxy.APIKey == "" {
+			return fmt.Errorf("llm.aiproxy.apiKey is required when provider is %q", LLMProviderAIProxy)
+		}
 	}
 
 	return nil
@@ -295,8 +337,10 @@ func validateCalendar(cfg *CalendarConfig) error {
 		if err := validateWebcalStorage(&cfg.Webcal.Storage); err != nil {
 			return err
 		}
+	case CalendarProviderSMTP:
+		return validateSMTP(&cfg.SMTP)
 	default:
-		return fmt.Errorf("unsupported calendar.provider %q (must be %q, %q, or %q)", cfg.Provider, CalendarProviderGoogle, CalendarProviderWebcal, CalendarProviderMock)
+		return fmt.Errorf("unsupported calendar.provider %q (must be %q, %q, %q, or %q)", cfg.Provider, CalendarProviderGoogle, CalendarProviderWebcal, CalendarProviderMock, CalendarProviderSMTP)
 	}
 
 	if cfg.Provider == CalendarProviderGoogle {
@@ -324,6 +368,28 @@ func validateWebcalStorage(cfg *StorageConfig) error {
 	case StorageProviderMock:
 	default:
 		return fmt.Errorf("unsupported calendar.webcal.storage.provider %q (must be %q or %q)", cfg.Provider, StorageProviderS3, StorageProviderMock)
+	}
+	return nil
+}
+
+func validateSMTP(cfg *SMTPConfig) error {
+	switch cfg.AuthMethod {
+	case SMTPAuthNone, SMTPAuthPlain, SMTPAuthLogin:
+	default:
+		return fmt.Errorf("unsupported calendar.smtp.authMethod %q (must be one of %q, %q, %q)",
+			cfg.AuthMethod, SMTPAuthNone, SMTPAuthPlain, SMTPAuthLogin)
+	}
+	if cfg.Host == "" {
+		return fmt.Errorf("calendar.smtp.host is required")
+	}
+	if cfg.To == "" {
+		return fmt.Errorf("calendar.smtp.to is required")
+	}
+	if cfg.From == "" {
+		return fmt.Errorf("calendar.smtp.from is required")
+	}
+	if cfg.AuthMethod != SMTPAuthNone && cfg.CredentialsFile == "" {
+		return fmt.Errorf("calendar.smtp.credentialsFile is required when authMethod is %q", cfg.AuthMethod)
 	}
 	return nil
 }

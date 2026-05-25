@@ -14,9 +14,24 @@ Helm chart for deploying Calendar Assistent
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
 | config.calendar.google.calendarId | string | `"primary"` |  |
-| config.calendar.google.credentialsFile | string | `"/app/secrets/google-credentials.json"` |  |
+| config.calendar.google.credentialsFile | string | `"/app/secrets/google/google-credentials.json"` |  |
 | config.calendar.google.timeZone | string | `"UTC"` |  |
 | config.calendar.provider | string | `"google"` |  |
+| config.calendar.smtp.authMethod | string | `"plain"` |  |
+| config.calendar.smtp.credentialsFile | string | `"/app/secrets/smtp/smtp-credentials.json"` |  |
+| config.calendar.smtp.from | string | `""` |  |
+| config.calendar.smtp.host | string | `""` |  |
+| config.calendar.smtp.port | int | `587` |  |
+| config.calendar.smtp.tls | bool | `false` |  |
+| config.calendar.smtp.to | string | `""` |  |
+| config.calendar.webcal.eventTtl | string | `"720h"` |  |
+| config.calendar.webcal.storage.provider | string | `"s3"` |  |
+| config.calendar.webcal.storage.s3.bucket | string | `""` |  |
+| config.calendar.webcal.storage.s3.credentialsFile | string | `"/app/secrets/s3-credentials.json"` |  |
+| config.calendar.webcal.storage.s3.endpoint | string | `""` |  |
+| config.calendar.webcal.storage.s3.key | string | `"calendar.ics"` |  |
+| config.calendar.webcal.storage.s3.publicUrl | string | `""` |  |
+| config.calendar.webcal.storage.s3.region | string | `""` |  |
 | config.llm.aiproxy.apiKey | string | `""` |  |
 | config.llm.aiproxy.baseUrl | string | `""` |  |
 | config.llm.aiproxy.maxTokens | int | `4096` |  |
@@ -54,6 +69,7 @@ Helm chart for deploying Calendar Assistent
 | podSecurityContext | object | `{}` |  |
 | replicaCount | int | `1` |  |
 | resources | object | `{}` |  |
+| s3Credentials | string | `""` |  |
 | securityContext | object | `{}` |  |
 | service.port | int | `80` |  |
 | service.targetPort | int | `8080` |  |
@@ -61,6 +77,7 @@ Helm chart for deploying Calendar Assistent
 | serviceAccount.annotations | object | `{}` |  |
 | serviceAccount.create | bool | `true` |  |
 | serviceAccount.name | string | `""` |  |
+| smtpCredentials | string | `""` |  |
 | tolerations | list | `[]` |  |
 
 ----------------------------------------------
