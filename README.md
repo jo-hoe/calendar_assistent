@@ -9,7 +9,6 @@
 [![Release](https://img.shields.io/github/v/release/jo-hoe/calendar_assistent)](https://github.com/jo-hoe/calendar_assistent/releases)
 [![Docker Image](https://img.shields.io/badge/ghcr.io-jo--hoe%2Fcalendar__assistent-blue?logo=docker)](https://github.com/jo-hoe/calendar_assistent/pkgs/container/calendar_assistent)
 [![Helm Chart](https://img.shields.io/badge/helm-calendar--assistent-blue?logo=helm)](https://jo-hoe.github.io/calendar_assistent)
-[![License](https://img.shields.io/github/license/jo-hoe/calendar_assistent)](LICENSE)
 
 An HTTP service that accepts artifacts (images, PDFs, text) and extracts calendar event information using an AI proxy, then creates events in Google Calendar.
 
